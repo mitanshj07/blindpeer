@@ -3,8 +3,9 @@
 import { useEffect, useMemo } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { Encryptable } from '@cofhe/sdk'
-import { Check, Circle, Loader2, Shield, X } from 'lucide-react'
+import { BadgeCheck, Check, Circle, Loader2, Shield, Sparkles, X } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
+import { DEMO_PAPER, DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
 import {
   hasPaper,
   type PaperTuple,
@@ -38,9 +39,16 @@ function tuple3<T>(value: unknown, fallback: readonly [T, T, T]): readonly [T, T
   return fallback
 }
 
-export function ReviewPaper({ paperId }: { paperId: bigint }) {
+type ReviewPaperProps = {
+  paperId: bigint
+  mode?: 'demo' | 'live'
+  demoStage?: DemoStage
+}
+
+export function ReviewPaper({ paperId, mode = 'live', demoStage = 'ready' }: ReviewPaperProps) {
   const { address } = useAccount()
   const { client, isReady, isLoading, error } = useCofheClient()
+  const isDemo = mode === 'demo'
 
   const { data: paperData, refetch: refetchPaper } = useReadContract({
     address: REVIEW_POOL_ADDRESS,
@@ -101,6 +109,81 @@ export function ReviewPaper({ paperId }: { paperId: bigint }) {
     } catch (err) {
       console.error(err)
     }
+  }
+
+  if (isDemo) {
+    const accepted = demoStage === 'accepted'
+    const matching = demoStage === 'matching'
+    const approvedCount = accepted ? 3 : matching ? 2 : 0
+
+    return (
+      <div className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
+        <div className="relative z-10 mb-6 flex items-center gap-3">
+          <div className="rounded-lg border border-teal-400/20 bg-teal-400/10 p-2">
+            <Shield className="h-5 w-5 text-teal-300" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">AI-Matched Reviewers</h2>
+            <p className="text-sm text-slate-400">Top reviewers auto-ranked for the fixed paper.</p>
+          </div>
+        </div>
+
+        <div className="relative z-10 space-y-4">
+          <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+            <p className="text-sm text-slate-400">Paper Hash</p>
+            <p className="mt-1 break-all font-mono text-sm text-slate-200">{DEMO_PAPER.hash}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {DEMO_REVIEWERS.map((reviewer, index) => {
+              const approved = index < approvedCount
+              return (
+                <div
+                  key={reviewer.address}
+                  className={`rounded-lg border p-3 ${
+                    approved ? 'border-emerald-300/40 bg-emerald-300/10' : 'border-white/10 bg-black/20'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reviewer {index + 1}</span>
+                      <p className="mt-1 text-sm font-semibold text-slate-100">{reviewer.name}</p>
+                    </div>
+                    {approved ? <Check className="h-4 w-4 text-emerald-300" /> : <Circle className="h-4 w-4 text-slate-500" />}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">{reviewer.specialty}</p>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <span className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-100">
+                      {reviewer.matchScore}% match
+                    </span>
+                    <span className="text-xs text-slate-400">{approved ? 'Approved' : matching ? 'Reviewing' : 'Matched'}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-slate-950/60 p-4">
+            {accepted ? (
+              <div className="flex items-center gap-3 text-emerald-200">
+                <BadgeCheck className="h-5 w-5" />
+                <span className="font-semibold">3 approvals sealed. Paper passed.</span>
+              </div>
+            ) : matching ? (
+              <div className="flex items-center gap-3 text-cyan-100">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="font-semibold">Auto-review in progress.</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 text-slate-300">
+                <Sparkles className="h-5 w-5 text-amber-300" />
+                <span className="font-semibold">Reviewer set ready.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!exists) {

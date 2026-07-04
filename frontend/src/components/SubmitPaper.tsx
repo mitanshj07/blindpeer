@@ -6,6 +6,7 @@ import { isAddress, keccak256, stringToHex, type Address } from 'viem'
 import { Encryptable } from '@cofhe/sdk'
 import { AlertCircle, ClipboardCheck, FileText, Loader2, Send, Sparkles, Users } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
+import { DEMO_AI_SIGNAL, DEMO_PAPER, DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
 import { REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS, shortAddress } from '@/lib/reviewPool'
 
 type AiSignal = {
@@ -40,15 +41,28 @@ function parseReviewers(value: string) {
     .filter(Boolean)
 }
 
-export function SubmitPaper({ onSubmitted }: { onSubmitted?: (paperId: bigint) => void }) {
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+type SubmitPaperProps = {
+  mode?: 'demo' | 'live'
+  onSubmitted?: (paperId: bigint) => void
+  onDemoStageChange?: (stage: DemoStage) => void
+}
+
+export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: SubmitPaperProps) {
+  const isDemo = mode === 'demo'
   const { address } = useAccount()
   const { client, isReady, isLoading: cofheLoading, error: cofheError } = useCofheClient()
-  const [title, setTitle] = useState('')
-  const [abstract, setAbstract] = useState('')
-  const [reviewers, setReviewers] = useState(LOCAL_REVIEWERS.join(', '))
-  const [aiSignal, setAiSignal] = useState<AiSignal | null>(null)
+  const [title, setTitle] = useState(() => (isDemo ? DEMO_PAPER.title : ''))
+  const [abstract, setAbstract] = useState(() => (isDemo ? DEMO_PAPER.abstract : ''))
+  const [reviewers, setReviewers] = useState(() =>
+    isDemo ? DEMO_REVIEWERS.map((reviewer) => reviewer.address).join(', ') : LOCAL_REVIEWERS.join(', '),
+  )
+  const [aiSignal, setAiSignal] = useState<AiSignal | null>(() => (isDemo ? DEMO_AI_SIGNAL : null))
   const [formError, setFormError] = useState<string | null>(null)
-  const [stage, setStage] = useState<'idle' | 'scoring' | 'encrypting' | 'submitting'>('idle')
+  const [stage, setStage] = useState<'idle' | 'scoring' | 'matching' | 'encrypting' | 'submitting'>('idle')
   const [submittedPaperId, setSubmittedPaperId] = useState<bigint | null>(null)
 
   const parsedReviewers = useMemo(() => parseReviewers(reviewers), [reviewers])
@@ -95,6 +109,26 @@ export function SubmitPaper({ onSubmitted }: { onSubmitted?: (paperId: bigint) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
+
+    if (isDemo) {
+      try {
+        onDemoStageChange?.('ready')
+        setStage('scoring')
+        setAiSignal(DEMO_AI_SIGNAL)
+        await wait(450)
+
+        setStage('matching')
+        onDemoStageChange?.('matching')
+        await wait(650)
+
+        setStage('submitting')
+        await wait(500)
+        onDemoStageChange?.('accepted')
+      } finally {
+        setStage('idle')
+      }
+      return
+    }
 
     if (!address) {
       setFormError('Connect the author wallet before submitting.')
@@ -143,7 +177,21 @@ export function SubmitPaper({ onSubmitted }: { onSubmitted?: (paperId: bigint) =
   }
 
   const isBusy = isPending || isWaiting || stage !== 'idle'
-  const buttonLabel = stage === 'scoring' ? 'Scoring with Groq' : stage === 'encrypting' ? 'Encrypting author' : 'Submit to pool'
+  const buttonLabel =
+    stage === 'scoring'
+      ? 'Scoring with Groq'
+      : stage === 'matching'
+        ? 'Matching reviewers'
+        : stage === 'encrypting'
+          ? 'Encrypting author'
+          : stage === 'submitting'
+            ? isDemo
+              ? 'Auto approving'
+              : 'Submit to pool'
+            : isDemo
+              ? 'Submit demo paper'
+              : 'Submit to pool'
+  const visibleError = formError || (!isDemo ? reviewerIssue || cofheError : null)
 
   return (
     <div className="rounded-lg border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
@@ -165,6 +213,7 @@ export function SubmitPaper({ onSubmitted }: { onSubmitted?: (paperId: bigint) =
             required
             value={title}
             onChange={e => setTitle(e.target.value)}
+            readOnly={isDemo}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
             placeholder="Encrypted consensus scoring for double-blind review"
           />
@@ -173,54 +222,80 @@ export function SubmitPaper({ onSubmitted }: { onSubmitted?: (paperId: bigint) =
           <label className="block text-sm font-medium text-slate-400 mb-1">Abstract</label>
           <textarea 
             required
-            rows={4}
+            rows={isDemo ? 7 : 4}
             value={abstract}
             onChange={e => setAbstract(e.target.value)}
+            readOnly={isDemo}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
             placeholder="Describe the method, threat model, and evaluation signal..."
           />
         </div>
         <div>
           <div className="mb-1 flex items-center justify-between gap-3">
-            <label className="block text-sm font-medium text-slate-400">Reviewers</label>
-            <button
-              type="button"
-              onClick={() => setReviewers(LOCAL_REVIEWERS.join(', '))}
-              className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-200"
-            >
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              Local demo
-            </button>
+            <label className="block text-sm font-medium text-slate-400">
+              {isDemo ? 'AI-Matched Reviewers' : 'Reviewers'}
+            </label>
+            {!isDemo && (
+              <button
+                type="button"
+                onClick={() => setReviewers(LOCAL_REVIEWERS.join(', '))}
+                className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-200"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Local demo
+              </button>
+            )}
           </div>
-          <input 
-            type="text" 
-            required
-            value={reviewers}
-            onChange={e => setReviewers(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 font-mono text-sm text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
-            placeholder="0x..., 0x..., 0x..."
-          />
-          {parsedReviewers.length === 3 && !reviewerIssue && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {parsedReviewers.map((reviewer) => (
-                <span key={reviewer} className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300">
-                  <Users className="h-3 w-3 text-cyan-300" />
-                  {shortAddress(reviewer)}
-                </span>
+          {isDemo ? (
+            <div className="grid gap-2">
+              {DEMO_REVIEWERS.map((reviewer) => (
+                <div key={reviewer.address} className="rounded-md border border-white/10 bg-black/20 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-100">{reviewer.name}</p>
+                      <p className="text-xs text-slate-400">{reviewer.specialty}</p>
+                    </div>
+                    <span className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-100">
+                      {reviewer.matchScore}%
+                    </span>
+                  </div>
+                  <p className="mt-2 font-mono text-xs text-slate-400">{shortAddress(reviewer.address)}</p>
+                </div>
               ))}
             </div>
+          ) : (
+            <>
+              <input 
+                type="text" 
+                required
+                value={reviewers}
+                onChange={e => setReviewers(e.target.value)}
+                className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 font-mono text-sm text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
+                placeholder="0x..., 0x..., 0x..."
+              />
+              {parsedReviewers.length === 3 && !reviewerIssue && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {parsedReviewers.map((reviewer) => (
+                    <span key={reviewer} className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300">
+                      <Users className="h-3 w-3 text-cyan-300" />
+                      {shortAddress(reviewer)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
         <button 
-          disabled={isBusy || !isReady || cofheLoading}
+          disabled={isBusy || (!isDemo && (!isReady || cofheLoading))}
           type="submit"
           className="flex w-full items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
         >
-          {isBusy || cofheLoading ? (
+          {isBusy || (!isDemo && cofheLoading) ? (
             <><Loader2 className="h-5 w-5 animate-spin" /> {buttonLabel}</>
           ) : (
-            <><Send className="h-5 w-5" /> Submit to Review Pool</>
+            <><Send className="h-5 w-5" /> {isDemo ? 'Submit Demo Paper' : 'Submit to Review Pool'}</>
           )}
         </button>
       </form>
@@ -238,14 +313,14 @@ export function SubmitPaper({ onSubmitted }: { onSubmitted?: (paperId: bigint) =
         </div>
       )}
 
-      {(formError || reviewerIssue || cofheError) && (
+      {visibleError && (
         <div className="mt-4 flex gap-2 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{formError || reviewerIssue || cofheError}</span>
+          <span>{visibleError}</span>
         </div>
       )}
 
-      {isSuccess && (
+      {!isDemo && isSuccess && (
         <div className="mt-4 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-center text-sm text-emerald-200">
           Paper submitted. Active paper ID: {submittedPaperId?.toString() ?? '0'}
         </div>

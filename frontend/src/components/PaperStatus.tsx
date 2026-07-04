@@ -4,16 +4,24 @@ import { useEffect, useState } from 'react'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { Activity, AlertCircle, CheckCircle2, KeyRound, Loader2, Lock, Radio, Sparkles, Unlock, XCircle } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
+import { DEMO_AUTHOR, DEMO_PAPER, type DemoStage } from '@/lib/demoScenario'
 import { hasPaper, type PaperTuple, REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS, shortAddress } from '@/lib/reviewPool'
 
 function decryptedToBool(value: unknown) {
   return value === true || value === 1 || value === 1n || value === '1'
 }
 
-export function PaperStatus({ paperId }: { paperId: bigint }) {
+type PaperStatusProps = {
+  paperId: bigint
+  mode?: 'demo' | 'live'
+  demoStage?: DemoStage
+}
+
+export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: PaperStatusProps) {
   const { address } = useAccount()
   const { client, isReady, isLoading: cofheLoading, error: cofheError } = useCofheClient()
   const [actionError, setActionError] = useState<string | null>(null)
+  const isDemo = mode === 'demo'
 
   const { data: paperData, refetch } = useReadContract({
     address: REVIEW_POOL_ADDRESS,
@@ -38,6 +46,85 @@ export function PaperStatus({ paperId }: { paperId: bigint }) {
   }, [isIdSuccess, isReqSuccess, isRevSuccess, refetch])
 
   const paper = paperData as PaperTuple | undefined
+
+  if (isDemo) {
+    const accepted = demoStage === 'accepted'
+    const matching = demoStage === 'matching'
+    const votesIn = accepted ? 3 : matching ? 2 : 0
+    const steps = [
+      { label: 'Submitted', active: matching || accepted },
+      { label: 'Votes', active: votesIn > 0 },
+      { label: 'Threshold', active: accepted },
+      { label: 'Verdict', active: accepted },
+    ]
+
+    return (
+      <div className="rounded-lg border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="rounded-lg border border-blue-400/20 bg-blue-400/10 p-2">
+            <Activity className="h-5 w-5 text-blue-300" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Review Status</h2>
+            <p className="text-sm text-slate-400">Paper #{DEMO_PAPER.id} by {shortAddress(DEMO_AUTHOR)}</p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+              <p className="text-sm text-slate-400">Votes Received</p>
+              <p className="mt-1 text-3xl font-bold text-white">{votesIn} <span className="text-lg font-normal text-slate-500">/ 3</span></p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+              <p className="text-sm text-slate-400">AI Pre-Score</p>
+              <div className="mt-1 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-300" />
+                <p className="text-3xl font-bold text-amber-300">{DEMO_PAPER.aiScore}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2">
+            {steps.map((step) => (
+              <div key={step.label} className={`rounded-md border px-2 py-2 text-center text-xs font-semibold ${step.active ? 'border-cyan-300/40 bg-cyan-300/10 text-cyan-100' : 'border-white/10 bg-black/20 text-slate-500'}`}>
+                {step.label}
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-4 rounded-lg border border-white/10 bg-slate-950/60 p-5">
+            {!matching && !accepted && (
+              <div>
+                <h3 className="font-medium text-slate-200">Ready For Submission</h3>
+                <p className="text-sm text-slate-400">Demo paper is loaded.</p>
+              </div>
+            )}
+
+            {matching && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-200">Private Review Running</h3>
+                  <p className="text-sm text-slate-400">Matched reviewers are sealing encrypted approvals.</p>
+                </div>
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-200" />
+              </div>
+            )}
+
+            {accepted && (
+              <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-4">
+                <h3 className="flex items-center gap-2 text-lg font-bold text-emerald-200">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Paper Accepted
+                </h3>
+                <p className="mt-2 text-sm text-emerald-100/80">3 encrypted approvals met the 2-of-3 threshold.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!hasPaper(paper)) {
     return (
