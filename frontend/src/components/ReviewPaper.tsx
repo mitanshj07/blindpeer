@@ -116,7 +116,7 @@ export function ReviewPaper({ paperId, mode = 'live', demoStage = 'ready' }: Rev
     const encrypted = demoStage === 'encrypting' || demoStage === 'submittingPaper' || demoStage === 'submitted'
     const submitted = demoStage === 'submitted'
     const matching = demoStage === 'matching'
-    const approvedCount = 0
+    const approvedCount = submitted ? 2 : 0
 
     return (
       <div className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
@@ -182,7 +182,7 @@ export function ReviewPaper({ paperId, mode = 'live', demoStage = 'ready' }: Rev
                         {reviewer.matchScore}% match
                       </span>
                       <span className="text-xs text-slate-400">
-                        {approved ? 'Approved' : submitted ? 'Awaiting vote' : encrypted ? 'Assigned' : 'Matched'}
+                        {approved ? 'Approved' : submitted ? 'Pending' : encrypted ? 'Assigned' : 'Matched'}
                       </span>
                     </div>
                   </div>
@@ -195,7 +195,7 @@ export function ReviewPaper({ paperId, mode = 'live', demoStage = 'ready' }: Rev
             {submitted ? (
               <div className="flex items-center gap-3 text-emerald-200">
                 <BadgeCheck className="h-5 w-5" />
-                <span className="font-semibold">Paper submitted. Reviewer wallets can now vote.</span>
+                <span className="font-semibold">2 of 3 approvals received. Paper passed.</span>
               </div>
             ) : demoStage === 'encrypting' ? (
               <div className="flex items-center gap-3 text-cyan-100">

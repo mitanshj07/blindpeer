@@ -250,7 +250,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
                   ? demoStage === 'matched'
                     ? 'Encrypt paper'
                     : demoStage === 'submitted'
-                      ? 'Paper submitted'
+                      ? 'Paper passed'
                       : 'Submit idea'
                   : 'Submit to pool'
   const visibleError = formError || (!isDemo ? reviewerIssue || cofheError : null)
@@ -382,7 +382,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
           ) : isDemo && demoStage === 'matched' ? (
             <><LockKeyhole className="h-5 w-5" /> Encrypt Paper</>
           ) : isDemo ? (
-            <><Users className="h-5 w-5" /> {demoStage === 'submitted' ? 'Paper Submitted' : 'Submit Idea for Review'}</>
+            <><Users className="h-5 w-5" /> {demoStage === 'submitted' ? 'Paper Passed' : 'Submit Idea for Review'}</>
           ) : (
             <><Send className="h-5 w-5" /> Submit to Review Pool</>
           )}

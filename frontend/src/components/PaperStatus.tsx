@@ -53,14 +53,14 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready', demoS
     const encrypted = demoStage === 'encrypting' || demoStage === 'submittingPaper' || demoStage === 'submitted'
     const submitted = demoStage === 'submitted'
     const matching = demoStage === 'matching'
-    const votesIn = 0
+    const votesIn = submitted ? 2 : 0
     const guidedPaperLabel = submitted ? `Paper #${paperId.toString()}` : 'Paper pending'
     const guidedAuthorLabel = address ? shortAddress(address) : 'author wallet'
     const steps = [
       { label: 'Idea', active: matching || matched },
       { label: 'Match', active: matched },
       { label: 'Encrypt', active: encrypted },
-      { label: 'Submit', active: submitted },
+      { label: 'Passed', active: submitted },
     ]
 
     return (
@@ -167,9 +167,9 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready', demoS
               <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-4">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-emerald-200">
                   <CheckCircle2 className="h-5 w-5" />
-                  Paper Submitted
+                  Paper Passed
                 </h3>
-                <p className="mt-2 text-sm text-emerald-100/80">The encrypted paper is live and awaiting real reviewer votes.</p>
+                <p className="mt-2 text-sm text-emerald-100/80">2 of 3 encrypted reviewer approvals received.</p>
               </div>
             )}
           </div>
