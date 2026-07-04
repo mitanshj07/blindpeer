@@ -1,14 +1,37 @@
 'use client'
 
 import { useState } from 'react'
+import { useReadContract } from 'wagmi'
 import { SubmitPaper } from '@/components/SubmitPaper'
 import { ReviewPaper } from '@/components/ReviewPaper'
 import { PaperStatus } from '@/components/PaperStatus'
 import { WalletConnectButton } from '@/components/WalletConnectButton'
+import { REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS } from '@/lib/reviewPool'
 import { BrainCircuit, ShieldCheck } from 'lucide-react'
 
 export default function Home() {
-  const [activePaperId, setActivePaperId] = useState<bigint>(0n)
+  const [activePaperId, setActivePaperId] = useState<bigint | null>(() => {
+    if (typeof window === 'undefined') return null
+    const storedPaperId = window.localStorage.getItem('blindpeer.activePaperId')
+    return storedPaperId && /^\d+$/.test(storedPaperId) ? BigInt(storedPaperId) : null
+  })
+
+  const { data: paperCount } = useReadContract({
+    address: REVIEW_POOL_ADDRESS,
+    abi: REVIEW_POOL_ABI,
+    functionName: 'paperCount',
+    query: { refetchInterval: 5000 },
+  })
+
+  const latestPaperId = typeof paperCount === 'bigint' && paperCount > 0n ? paperCount - 1n : 0n
+  const displayedPaperId = activePaperId ?? latestPaperId
+
+  const handleSubmitted = (paperId: bigint) => {
+    setActivePaperId(paperId)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('blindpeer.activePaperId', paperId.toString())
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500/30">
@@ -48,12 +71,12 @@ export default function Home() {
 
         <div className="grid w-full grid-cols-1 gap-8 lg:grid-cols-12">
           <div className="lg:col-span-5 space-y-8">
-            <SubmitPaper onSubmitted={setActivePaperId} />
+            <SubmitPaper onSubmitted={handleSubmitted} />
           </div>
 
           <div className="lg:col-span-7 space-y-8">
-            <PaperStatus paperId={activePaperId} />
-            <ReviewPaper paperId={activePaperId} />
+            <PaperStatus paperId={displayedPaperId} />
+            <ReviewPaper paperId={displayedPaperId} />
           </div>
         </div>
       </main>

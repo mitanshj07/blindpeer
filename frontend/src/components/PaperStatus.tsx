@@ -48,11 +48,11 @@ export function PaperStatus({ paperId }: { paperId: bigint }) {
     )
   }
 
-  const votesIn = Number(paper[5] || 0)
-  const passedHasRequested = paper[6] ? paper[6] !== 0n : false
-  const verdictRevealed = Boolean(paper[7])
-  const isAccepted = Boolean(paper[8])
-  const authorAddress = typeof paper[9] === 'string' ? paper[9] : ''
+  const votesIn = Number(paper[4] || 0)
+  const passedHasRequested = paper[5] !== `0x${'0'.repeat(64)}`
+  const verdictRevealed = Boolean(paper[6])
+  const isAccepted = Boolean(paper[7])
+  const authorAddress = typeof paper[8] === 'string' ? paper[8] : ''
   const isAuthor = authorAddress.toLowerCase() === (address?.toLowerCase() || '')
   const readyForVerdict = votesIn === 3
 
@@ -70,7 +70,7 @@ export function PaperStatus({ paperId }: { paperId: bigint }) {
     if (!client || !isReady) return
     try {
       setActionError(null)
-      const result = await client.decryptForTx(paper[6]).withoutPermit().execute()
+      const result = await client.decryptForTx(paper[5]).withoutPermit().execute()
       writeRevVerdict({
         address: REVIEW_POOL_ADDRESS,
         abi: REVIEW_POOL_ABI,

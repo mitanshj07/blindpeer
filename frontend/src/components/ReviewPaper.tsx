@@ -74,13 +74,14 @@ export function ReviewPaper({ paperId }: { paperId: bigint }) {
   const reviewers = useMemo(
     () =>
       tuple3(
-        statuses?.reviewers ?? statuses?.[0] ?? paper?.[3],
+        statuses?.reviewers ?? statuses?.[0],
         [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS] as const,
       ),
-    [paper, statuses],
+    [statuses],
   )
   const voted = useMemo(() => tuple3(statuses?.voted ?? statuses?.[1], [false, false, false] as const), [statuses])
-  const currentReviewerIndex = reviewers.findIndex((reviewer) => reviewer.toLowerCase() === address?.toLowerCase())
+  const reviewersList = Array.isArray(reviewers) ? reviewers : [reviewers[0], reviewers[1], reviewers[2]]
+  const currentReviewerIndex = reviewersList.findIndex((reviewer) => typeof reviewer === 'string' && reviewer.toLowerCase() === address?.toLowerCase())
   const isReviewer = currentReviewerIndex >= 0
   const currentReviewerHasVoted = currentReviewerIndex >= 0 ? voted[currentReviewerIndex] : false
 

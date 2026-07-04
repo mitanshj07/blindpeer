@@ -10,12 +10,11 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as cons
 
 export type PaperTuple = readonly [
   paperHash: `0x${string}`,
-  encAuthorId: bigint,
+  encAuthorId: `0x${string}`,
   groqScore: number,
-  reviewers: readonly [Address, Address, Address],
-  voteSum: bigint,
+  voteSum: `0x${string}`,
   votesIn: number,
-  passed: bigint,
+  passed: `0x${string}`,
   verdictRevealed: boolean,
   accepted: boolean,
   author: Address,
