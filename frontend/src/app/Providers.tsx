@@ -7,25 +7,25 @@ import { defineChain } from 'viem'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode } from 'react'
 
-const arbitrumSepolia = defineChain({
-  id: 421614,
-  name: 'Arbitrum Sepolia',
-  network: 'arb-sepolia',
+const ethereumSepolia = defineChain({
+  id: 11155111,
+  name: 'Ethereum Sepolia',
+  network: 'eth-sepolia',
   nativeCurrency: {
     decimals: 18,
-    name: 'Arbitrum Sepolia Ether',
+    name: 'Sepolia Ether',
     symbol: 'ETH',
   },
   rpcUrls: {
     default: {
-      http: ['https://sepolia-rollup.arbitrum.io/rpc'],
+      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
     },
     public: {
-      http: ['https://sepolia-rollup.arbitrum.io/rpc'],
+      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
     },
   },
   blockExplorers: {
-    default: { name: 'Arbiscan', url: 'https://sepolia.arbiscan.io' },
+    default: { name: 'Etherscan', url: 'https://sepolia.etherscan.io' },
   },
 })
 
@@ -62,7 +62,7 @@ const hardhatLocal = defineChain({
 const config = getDefaultConfig({
   appName: 'BlindPeer',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'blindpeer-local-demo',
-  chains: [hardhatLocal, localCofhe, arbitrumSepolia],
+  chains: [ethereumSepolia, hardhatLocal, localCofhe],
   ssr: true,
 })
 

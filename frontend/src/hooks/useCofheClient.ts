@@ -34,7 +34,7 @@ export function useCofheClient() {
       try {
         setState((current) => ({ ...current, isReady: false, isLoading: true, error: null }))
         const chainId = await walletClient.getChainId()
-        const chain = getChainById(chainId) || getChainById(421614)
+        const chain = getChainById(chainId) || getChainById(11155111)
 
         const config = createCofheConfig({
           environment: 'web',
