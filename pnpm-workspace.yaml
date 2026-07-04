@@ -1,0 +1,6 @@
+allowBuilds:
+  '@fhenixprotocol/cofhe-contracts': true
+  keccak: true
+  secp256k1: true
+minimumReleaseAgeExclude:
+  - viem@2.54.3
