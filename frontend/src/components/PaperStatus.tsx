@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { Activity, AlertCircle, CheckCircle2, KeyRound, Loader2, Lock, Radio, Sparkles, Unlock, XCircle } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
-import { DEMO_AUTHOR, DEMO_PAPER, type DemoStage } from '@/lib/demoScenario'
+import type { DemoStage } from '@/lib/demoScenario'
 import { hasPaper, type PaperTuple, REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS, shortAddress } from '@/lib/reviewPool'
 
 function decryptedToBool(value: unknown) {
@@ -54,6 +54,8 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready', demoS
     const submitted = demoStage === 'submitted'
     const matching = demoStage === 'matching'
     const votesIn = 0
+    const guidedPaperLabel = submitted ? `Paper #${paperId.toString()}` : 'Paper pending'
+    const guidedAuthorLabel = address ? shortAddress(address) : 'author wallet'
     const steps = [
       { label: 'Idea', active: matching || matched },
       { label: 'Match', active: matched },
@@ -69,7 +71,7 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready', demoS
           </div>
           <div>
             <h2 className="text-lg font-semibold text-white">Review Status</h2>
-            <p className="text-sm text-slate-400">Paper #{DEMO_PAPER.id} by {shortAddress(DEMO_AUTHOR)}</p>
+            <p className="text-sm text-slate-400">{guidedPaperLabel} by {guidedAuthorLabel}</p>
           </div>
         </div>
 

@@ -6,7 +6,7 @@ import { isAddress, keccak256, stringToHex, type Address } from 'viem'
 import { Encryptable } from '@cofhe/sdk'
 import { AlertCircle, ClipboardCheck, FileText, Loader2, LockKeyhole, Send, Sparkles, Users } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
-import { DEMO_PAPER, DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
+import { DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
 import { REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS, shortAddress } from '@/lib/reviewPool'
 
 type AiSignal = {
@@ -280,7 +280,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
             onChange={(e) => setTitle(e.target.value)}
             readOnly={!demoCanEdit}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
-            placeholder={isDemo ? DEMO_PAPER.title : 'Encrypted consensus scoring for double-blind review'}
+            placeholder=""
           />
         </div>
         <div>
@@ -292,7 +292,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
             onChange={(e) => setAbstract(e.target.value)}
             readOnly={!demoCanEdit}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
-            placeholder={isDemo ? DEMO_PAPER.abstract : 'Describe the method, threat model, and evaluation signal...'}
+            placeholder=""
           />
         </div>
 
