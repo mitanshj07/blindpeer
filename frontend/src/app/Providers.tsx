@@ -1,8 +1,6 @@
 'use client'
 
-import { getDefaultConfig, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
-import '@rainbow-me/rainbowkit/styles.css'
-import { WagmiProvider } from 'wagmi'
+import { createConfig, http, injected, WagmiProvider } from 'wagmi'
 import { defineChain } from 'viem'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode } from 'react'
@@ -59,10 +57,14 @@ const hardhatLocal = defineChain({
   },
 })
 
-const config = getDefaultConfig({
-  appName: 'BlindPeer',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'blindpeer-local-demo',
+const config = createConfig({
   chains: [ethereumSepolia, hardhatLocal, localCofhe],
+  connectors: [injected({ shimDisconnect: true })],
+  transports: {
+    [ethereumSepolia.id]: http('https://ethereum-sepolia-rpc.publicnode.com'),
+    [hardhatLocal.id]: http('http://127.0.0.1:8545'),
+    [localCofhe.id]: http('http://127.0.0.1:8545'),
+  },
   ssr: true,
 })
 
@@ -72,15 +74,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({
-          accentColor: '#6366f1',
-          accentColorForeground: 'white',
-          borderRadius: 'large',
-          fontStack: 'system',
-          overlayBlur: 'small',
-        })}>
-          {children}
-        </RainbowKitProvider>
+        {children}
       </QueryClientProvider>
     </WagmiProvider>
   )

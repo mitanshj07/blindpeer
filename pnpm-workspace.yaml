@@ -1,6 +1,16 @@
+packages:
+  - frontend
+
+overrides:
+  use-sync-external-store: 1.4.0
+
 allowBuilds:
   '@fhenixprotocol/cofhe-contracts': true
+  bufferutil: true
   keccak: true
   secp256k1: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true
 minimumReleaseAgeExclude:
   - viem@2.54.3

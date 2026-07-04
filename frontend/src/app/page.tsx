@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { SubmitPaper } from '@/components/SubmitPaper'
 import { ReviewPaper } from '@/components/ReviewPaper'
 import { PaperStatus } from '@/components/PaperStatus'
+import { WalletConnectButton } from '@/components/WalletConnectButton'
 import { BrainCircuit, ShieldCheck } from 'lucide-react'
 
 export default function Home() {
@@ -27,7 +27,7 @@ export default function Home() {
               <p className="text-sm font-medium text-slate-400">Encrypted evaluation infrastructure on Fhenix CoFHE</p>
             </div>
           </div>
-          <ConnectButton />
+          <WalletConnectButton />
         </header>
 
         <section className="mb-8 grid w-full gap-4 md:grid-cols-3">
