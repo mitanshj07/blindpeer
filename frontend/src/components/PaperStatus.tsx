@@ -15,9 +15,10 @@ type PaperStatusProps = {
   paperId: bigint
   mode?: 'demo' | 'live'
   demoStage?: DemoStage
+  demoScore?: number | null
 }
 
-export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: PaperStatusProps) {
+export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready', demoScore = null }: PaperStatusProps) {
   const { address } = useAccount()
   const { client, isReady, isLoading: cofheLoading, error: cofheError } = useCofheClient()
   const [actionError, setActionError] = useState<string | null>(null)
@@ -48,16 +49,16 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
   const paper = paperData as PaperTuple | undefined
 
   if (isDemo) {
-    const matched = ['matched', 'encrypting', 'accepted'].includes(demoStage)
-    const encrypted = demoStage === 'encrypting' || demoStage === 'accepted'
-    const accepted = demoStage === 'accepted'
+    const matched = ['matched', 'approvingEncryption', 'encrypting', 'submittingPaper', 'submitted'].includes(demoStage)
+    const encrypted = demoStage === 'encrypting' || demoStage === 'submittingPaper' || demoStage === 'submitted'
+    const submitted = demoStage === 'submitted'
     const matching = demoStage === 'matching'
-    const votesIn = accepted ? 3 : 0
+    const votesIn = 0
     const steps = [
       { label: 'Idea', active: matching || matched },
       { label: 'Match', active: matched },
       { label: 'Encrypt', active: encrypted },
-      { label: 'Verdict', active: accepted },
+      { label: 'Submit', active: submitted },
     ]
 
     return (
@@ -82,7 +83,7 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
               <p className="text-sm text-slate-400">AI Pre-Score</p>
               <div className="mt-1 flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-amber-300" />
-                <p className="text-3xl font-bold text-amber-300">{matching || matched ? DEMO_PAPER.aiScore : '-'}</p>
+                <p className="text-3xl font-bold text-amber-300">{matching || matched ? (demoScore ?? '-') : '-'}</p>
               </div>
             </div>
           </div>
@@ -99,7 +100,17 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
             {demoStage === 'ready' && (
               <div>
                 <h3 className="font-medium text-slate-200">Awaiting Idea</h3>
-                <p className="text-sm text-slate-400">Paste the paper idea, then match reviewers.</p>
+                <p className="text-sm text-slate-400">Paste the paper idea, then submit it on-chain.</p>
+              </div>
+            )}
+
+            {demoStage === 'submittingIdea' && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-200">Submitting Idea</h3>
+                  <p className="text-sm text-slate-400">Waiting for the wallet transaction to confirm.</p>
+                </div>
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-200" />
               </div>
             )}
 
@@ -116,7 +127,17 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
             {demoStage === 'matched' && (
               <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
                 <h3 className="font-medium text-cyan-100">Reviewers Matched</h3>
-                <p className="mt-1 text-sm text-cyan-100/75">Click Encrypt Paper to seal the paper hash and author identity.</p>
+                <p className="mt-1 text-sm text-cyan-100/75">Click Encrypt Paper to approve encryption on-chain.</p>
+              </div>
+            )}
+
+            {demoStage === 'approvingEncryption' && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-200">Approving Encryption</h3>
+                  <p className="text-sm text-slate-400">Waiting for the contract approval transaction.</p>
+                </div>
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-200" />
               </div>
             )}
 
@@ -130,13 +151,23 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
               </div>
             )}
 
-            {accepted && (
+            {demoStage === 'submittingPaper' && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-200">Submitting Paper</h3>
+                  <p className="text-sm text-slate-400">Writing the encrypted paper package to the review pool.</p>
+                </div>
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-200" />
+              </div>
+            )}
+
+            {submitted && (
               <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-4">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-emerald-200">
                   <CheckCircle2 className="h-5 w-5" />
-                  Paper Accepted
+                  Paper Submitted
                 </h3>
-                <p className="mt-2 text-sm text-emerald-100/80">3 encrypted approvals met the 2-of-3 threshold.</p>
+                <p className="mt-2 text-sm text-emerald-100/80">The encrypted paper is live and awaiting real reviewer votes.</p>
               </div>
             )}
           </div>

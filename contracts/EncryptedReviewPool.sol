@@ -20,13 +20,34 @@ contract EncryptedReviewPool {
 
     mapping(uint256 => Paper) public papers;
     uint256 public paperCount;
+    mapping(address => mapping(bytes32 => bool)) public ideaSubmitted;
+    mapping(address => mapping(bytes32 => bool)) public encryptionApproved;
 
+    event IdeaSubmitted(address indexed author, bytes32 indexed paperHash);
+    event PaperEncryptionApproved(address indexed author, bytes32 indexed paperHash);
     event PaperSubmitted(uint256 indexed paperId, bytes32 paperHash, uint8 groqScore);
     event VoteCast(uint256 indexed paperId, address indexed reviewer, uint8 votesIn);
     event VerdictReady(uint256 indexed paperId);
     event VerdictRequested(uint256 indexed paperId);
     event VerdictRevealed(uint256 indexed paperId, bool accepted);
     event IdentityRevealed(uint256 indexed paperId, address author);
+
+    function submitIdeaForReview(bytes32 paperHash) external {
+        require(paperHash != bytes32(0), "empty paper hash");
+
+        ideaSubmitted[msg.sender][paperHash] = true;
+
+        emit IdeaSubmitted(msg.sender, paperHash);
+    }
+
+    function approvePaperEncryption(bytes32 paperHash) external {
+        require(paperHash != bytes32(0), "empty paper hash");
+        require(ideaSubmitted[msg.sender][paperHash], "idea not submitted");
+
+        encryptionApproved[msg.sender][paperHash] = true;
+
+        emit PaperEncryptionApproved(msg.sender, paperHash);
+    }
 
     function submitPaper(
         bytes32 paperHash,
@@ -35,6 +56,8 @@ contract EncryptedReviewPool {
         address[3] calldata reviewers
     ) external returns (uint256 paperId) {
         require(paperHash != bytes32(0), "empty paper hash");
+        require(ideaSubmitted[msg.sender][paperHash], "idea not submitted");
+        require(encryptionApproved[msg.sender][paperHash], "encryption not approved");
         require(groqScore >= 1 && groqScore <= 10, "invalid groq score");
         require(reviewers[0] != address(0) && reviewers[1] != address(0) && reviewers[2] != address(0), "zero reviewer");
         require(

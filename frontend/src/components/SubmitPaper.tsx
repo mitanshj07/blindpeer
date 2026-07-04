@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
+import { useAccount, usePublicClient, useReadContract, useWriteContract } from 'wagmi'
 import { isAddress, keccak256, stringToHex, type Address } from 'viem'
 import { Encryptable } from '@cofhe/sdk'
 import { AlertCircle, ClipboardCheck, FileText, Loader2, LockKeyhole, Send, Sparkles, Users } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
-import { DEMO_AI_SIGNAL, DEMO_PAPER, DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
+import { DEMO_PAPER, DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
 import { REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS, shortAddress } from '@/lib/reviewPool'
 
 type AiSignal = {
@@ -14,6 +14,15 @@ type AiSignal = {
   rationale: string
   source: 'groq' | 'fallback'
 }
+
+type BusyStage =
+  | 'idle'
+  | 'submittingIdea'
+  | 'scoring'
+  | 'matching'
+  | 'approvingEncryption'
+  | 'encrypting'
+  | 'submittingPaper'
 
 const LOCAL_REVIEWERS = [
   '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
@@ -29,7 +38,7 @@ function clientFallbackScore(title: string, abstract: string): AiSignal {
 
   return {
     score: Math.max(4, Math.min(9, 5 + keywordHits + Math.floor(abstract.length / 500))),
-    rationale: 'Local fallback scored the paper so the demo can continue without the Groq service.',
+    rationale: 'Local fallback scored the paper so the flow can continue without the Groq service.',
     source: 'fallback',
   }
 }
@@ -50,11 +59,13 @@ type SubmitPaperProps = {
   demoStage?: DemoStage
   onSubmitted?: (paperId: bigint) => void
   onDemoStageChange?: (stage: DemoStage) => void
+  onAiSignal?: (signal: AiSignal | null) => void
 }
 
-export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, onDemoStageChange }: SubmitPaperProps) {
+export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, onDemoStageChange, onAiSignal }: SubmitPaperProps) {
   const isDemo = mode === 'demo'
   const { address } = useAccount()
+  const publicClient = usePublicClient()
   const { client, isReady, isLoading: cofheLoading, error: cofheError } = useCofheClient()
   const [title, setTitle] = useState('')
   const [abstract, setAbstract] = useState('')
@@ -63,7 +74,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
   )
   const [aiSignal, setAiSignal] = useState<AiSignal | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
-  const [stage, setStage] = useState<'idle' | 'scoring' | 'matching' | 'encrypting' | 'submitting'>('idle')
+  const [stage, setStage] = useState<BusyStage>('idle')
   const [submittedPaperId, setSubmittedPaperId] = useState<bigint | null>(null)
 
   const parsedReviewers = useMemo(() => parseReviewers(reviewers), [reviewers])
@@ -76,9 +87,8 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
     }
     return null
   }, [parsedReviewers])
-  
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isWaiting, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const { writeContractAsync, isPending } = useWriteContract()
   const { data: paperCount, refetch: refetchPaperCount } = useReadContract({
     address: REVIEW_POOL_ADDRESS,
     abi: REVIEW_POOL_ABI,
@@ -87,10 +97,9 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
   })
 
   useEffect(() => {
-    if (!isSuccess || submittedPaperId === null) return
-    onSubmitted?.(submittedPaperId)
+    if (submittedPaperId === null) return
     void refetchPaperCount()
-  }, [isSuccess, onSubmitted, refetchPaperCount, submittedPaperId])
+  }, [refetchPaperCount, submittedPaperId])
 
   const scorePaper = async () => {
     try {
@@ -107,51 +116,83 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
     }
   }
 
+  const waitForTx = async (hash: `0x${string}`) => {
+    if (!publicClient) throw new Error('Wallet network is not ready.')
+    await publicClient.waitForTransactionReceipt({ hash })
+  }
+
+  const submitIdeaAndMatch = async (paperHash: `0x${string}`) => {
+    setStage('submittingIdea')
+    onDemoStageChange?.('submittingIdea')
+    const ideaHash = await writeContractAsync({
+      address: REVIEW_POOL_ADDRESS,
+      abi: REVIEW_POOL_ABI,
+      functionName: 'submitIdeaForReview',
+      args: [paperHash],
+    })
+    await waitForTx(ideaHash)
+
+    setStage('scoring')
+    const scored = await scorePaper()
+    setAiSignal(scored)
+    onAiSignal?.(scored)
+
+    setStage('matching')
+    onDemoStageChange?.('matching')
+    await wait(700)
+    onDemoStageChange?.('matched')
+    return scored
+  }
+
+  const approveEncryptAndSubmit = async (paperHash: `0x${string}`, scored: AiSignal) => {
+    if (!client || !isReady) {
+      throw new Error(cofheError || 'CoFHE client is still initializing.')
+    }
+
+    setStage('approvingEncryption')
+    onDemoStageChange?.('approvingEncryption')
+    const approvalHash = await writeContractAsync({
+      address: REVIEW_POOL_ADDRESS,
+      abi: REVIEW_POOL_ABI,
+      functionName: 'approvePaperEncryption',
+      args: [paperHash],
+    })
+    await waitForTx(approvalHash)
+
+    setStage('encrypting')
+    onDemoStageChange?.('encrypting')
+    const authorIdNum = BigInt(parseInt(address!.slice(-8), 16))
+    const encAuthors = await client.encryptInputs([Encryptable.uint32(authorIdNum)]).execute()
+    const encAuthorId = encAuthors[0]
+    const revs = parsedReviewers as [Address, Address, Address]
+    const nextPaperId = typeof paperCount === 'bigint' ? paperCount : 0n
+
+    setStage('submittingPaper')
+    onDemoStageChange?.('submittingPaper')
+    const submitHash = await writeContractAsync({
+      address: REVIEW_POOL_ADDRESS,
+      abi: REVIEW_POOL_ABI,
+      functionName: 'submitPaper',
+      args: [paperHash, encAuthorId, scored.score, revs],
+    })
+    await waitForTx(submitHash)
+
+    setSubmittedPaperId(nextPaperId)
+    onSubmitted?.(nextPaperId)
+    onDemoStageChange?.('submitted')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
 
-    if (isDemo) {
-      if (!title.trim() || !abstract.trim()) {
-        setFormError('Paste the paper title and abstract before matching reviewers.')
-        return
-      }
-
-      try {
-        if (demoStage === 'ready') {
-          setStage('scoring')
-          setAiSignal(DEMO_AI_SIGNAL)
-          await wait(450)
-
-          setStage('matching')
-          onDemoStageChange?.('matching')
-          await wait(750)
-          onDemoStageChange?.('matched')
-          return
-        }
-
-        if (demoStage === 'matched') {
-          setStage('encrypting')
-          onDemoStageChange?.('encrypting')
-          await wait(900)
-
-          setStage('submitting')
-          await wait(650)
-          onDemoStageChange?.('accepted')
-        }
-      } finally {
-        setStage('idle')
-      }
+    if (!title.trim() || !abstract.trim()) {
+      setFormError('Paste the paper title and abstract before continuing.')
       return
     }
 
     if (!address) {
-      setFormError('Connect the author wallet before submitting.')
-      return
-    }
-
-    if (!client || !isReady) {
-      setFormError(cofheError || 'CoFHE client is still initializing.')
+      setFormError('Connect the author wallet before continuing.')
       return
     }
 
@@ -160,60 +201,62 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
       return
     }
 
+    const paperHash = keccak256(stringToHex(title.trim() + abstract.trim()))
+
     try {
-      setStage('scoring')
-      const scored = await scorePaper()
-      setAiSignal(scored)
+      if (isDemo) {
+        if (demoStage === 'ready') {
+          await submitIdeaAndMatch(paperHash)
+          return
+        }
 
-      setStage('encrypting')
-      const paperContent = title + abstract
-      const paperHash = keccak256(stringToHex(paperContent))
+        if (demoStage === 'matched') {
+          const scored = aiSignal ?? (await scorePaper())
+          setAiSignal(scored)
+          onAiSignal?.(scored)
+          await approveEncryptAndSubmit(paperHash, scored)
+        }
+        return
+      }
 
-      const authorIdNum = BigInt(parseInt(address.slice(-8), 16))
-      const encAuthors = await client.encryptInputs([Encryptable.uint32(authorIdNum)]).execute()
-      const encAuthorId = encAuthors[0]
-      const revs = parsedReviewers as [Address, Address, Address]
-      const nextPaperId = typeof paperCount === 'bigint' ? paperCount : 0n
-
-      setStage('submitting')
-      setSubmittedPaperId(nextPaperId)
-      writeContract({
-        address: REVIEW_POOL_ADDRESS,
-        abi: REVIEW_POOL_ABI,
-        functionName: 'submitPaper',
-        args: [paperHash, encAuthorId, scored.score, revs],
-      })
+      const scored = await submitIdeaAndMatch(paperHash)
+      await approveEncryptAndSubmit(paperHash, scored)
     } catch (err) {
       console.error(err)
+      if (isDemo) {
+        onDemoStageChange?.(demoStage === 'matched' ? 'matched' : 'ready')
+      }
       setFormError(err instanceof Error ? err.message : 'Paper submission failed.')
     } finally {
       setStage('idle')
     }
   }
 
-  const isBusy = isPending || isWaiting || stage !== 'idle'
+  const isBusy = isPending || stage !== 'idle'
   const buttonLabel =
-    stage === 'scoring'
-      ? 'Scoring with Groq'
-      : stage === 'matching'
-        ? 'Matching reviewers'
-        : stage === 'encrypting'
-          ? 'Encrypting paper'
-          : stage === 'submitting'
-            ? isDemo
-              ? 'Sealing approvals'
-              : 'Submit to pool'
-            : isDemo
-              ? demoStage === 'matched'
-                ? 'Encrypt paper'
-                : demoStage === 'accepted'
-                  ? 'Paper passed'
-                  : 'Match AI reviewers'
-              : 'Submit to pool'
+    stage === 'submittingIdea'
+      ? 'Submitting idea'
+      : stage === 'scoring'
+        ? 'Reviewing with Groq'
+        : stage === 'matching'
+          ? 'Matching reviewers'
+          : stage === 'approvingEncryption'
+            ? 'Confirming encryption'
+            : stage === 'encrypting'
+              ? 'Encrypting paper'
+              : stage === 'submittingPaper'
+                ? 'Submitting paper'
+                : isDemo
+                  ? demoStage === 'matched'
+                    ? 'Encrypt paper'
+                    : demoStage === 'submitted'
+                      ? 'Paper submitted'
+                      : 'Submit idea'
+                  : 'Submit to pool'
   const visibleError = formError || (!isDemo ? reviewerIssue || cofheError : null)
   const demoCanEdit = !isDemo || demoStage === 'ready'
-  const showDemoReviewers = isDemo && ['matched', 'encrypting', 'accepted'].includes(demoStage)
-  const demoActionDisabled = demoStage === 'accepted' || isBusy
+  const showDemoReviewers = isDemo && ['matched', 'approvingEncryption', 'encrypting', 'submittingPaper', 'submitted'].includes(demoStage)
+  const demoActionDisabled = demoStage === 'submitted' || isBusy
 
   return (
     <div className="rounded-lg border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
@@ -230,11 +273,11 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-400 mb-1">Paper Title</label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             required
             value={title}
-            onChange={e => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value)}
             readOnly={!demoCanEdit}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
             placeholder={isDemo ? DEMO_PAPER.title : 'Encrypted consensus scoring for double-blind review'}
@@ -242,32 +285,17 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-400 mb-1">Abstract</label>
-          <textarea 
+          <textarea
             required
             rows={isDemo ? 7 : 4}
             value={abstract}
-            onChange={e => setAbstract(e.target.value)}
+            onChange={(e) => setAbstract(e.target.value)}
             readOnly={!demoCanEdit}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
             placeholder={isDemo ? DEMO_PAPER.abstract : 'Describe the method, threat model, and evaluation signal...'}
           />
         </div>
-        {isDemo && demoStage === 'ready' && (
-          <button
-            type="button"
-            onClick={() => {
-              setTitle(DEMO_PAPER.title)
-              setAbstract(DEMO_PAPER.abstract)
-              setAiSignal(null)
-              setFormError(null)
-              onDemoStageChange?.('ready')
-            }}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:text-cyan-100"
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            Load Demo Idea
-          </button>
-        )}
+
         <div>
           <div className="mb-1 flex items-center justify-between gap-3">
             <label className="block text-sm font-medium text-slate-400">
@@ -280,7 +308,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
                 className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs font-medium text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-200"
               >
                 <ClipboardCheck className="h-3.5 w-3.5" />
-                Local demo
+                Sample reviewers
               </button>
             )}
           </div>
@@ -288,13 +316,19 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
             <div className="grid gap-2">
               {demoStage === 'ready' && (
                 <div className="rounded-md border border-white/10 bg-black/20 p-3 text-sm text-slate-400">
-                  Reviewer matching appears after the paper idea is submitted for matching.
+                  Reviewer matching appears after your idea submission transaction confirms.
+                </div>
+              )}
+              {demoStage === 'submittingIdea' && (
+                <div className="flex items-center gap-3 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Waiting for the idea submission transaction.
                 </div>
               )}
               {demoStage === 'matching' && (
                 <div className="flex items-center gap-3 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Matching reviewers by topic, methods, and governance fit.
+                  Groq reviewed the idea. Matching reviewers by topic and methods fit.
                 </div>
               )}
               {showDemoReviewers &&
@@ -316,11 +350,11 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
             </div>
           ) : (
             <>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={reviewers}
-                onChange={e => setReviewers(e.target.value)}
+                onChange={(e) => setReviewers(e.target.value)}
                 className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 font-mono text-sm text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
                 placeholder="0x..., 0x..., 0x..."
               />
@@ -338,7 +372,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
           )}
         </div>
 
-        <button 
+        <button
           disabled={isDemo ? demoActionDisabled : isBusy || !isReady || cofheLoading}
           type="submit"
           className="flex w-full items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
@@ -348,7 +382,7 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
           ) : isDemo && demoStage === 'matched' ? (
             <><LockKeyhole className="h-5 w-5" /> Encrypt Paper</>
           ) : isDemo ? (
-            <><Users className="h-5 w-5" /> {demoStage === 'accepted' ? 'Paper Passed' : 'Match AI Reviewers'}</>
+            <><Users className="h-5 w-5" /> {demoStage === 'submitted' ? 'Paper Submitted' : 'Submit Idea for Review'}</>
           ) : (
             <><Send className="h-5 w-5" /> Submit to Review Pool</>
           )}
@@ -375,9 +409,9 @@ export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, o
         </div>
       )}
 
-      {!isDemo && isSuccess && (
+      {submittedPaperId !== null && (
         <div className="mt-4 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-center text-sm text-emerald-200">
-          Paper submitted. Active paper ID: {submittedPaperId?.toString() ?? '0'}
+          Paper submitted. Active paper ID: {submittedPaperId.toString()}
         </div>
       )}
     </div>

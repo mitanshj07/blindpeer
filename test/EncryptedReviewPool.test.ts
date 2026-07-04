@@ -45,6 +45,13 @@ describe('EncryptedReviewPool', function () {
 		
 		const groqScore = 8
 
+		await expect(pool.connect(author).submitIdeaForReview(paperHash))
+			.to.emit(pool, 'IdeaSubmitted')
+			.withArgs(author.address, paperHash)
+		await expect(pool.connect(author).approvePaperEncryption(paperHash))
+			.to.emit(pool, 'PaperEncryptionApproved')
+			.withArgs(author.address, paperHash)
+
 		const tx = await pool.connect(author).submitPaper(
 			paperHash,
 			encAuthorId,
@@ -59,11 +66,29 @@ describe('EncryptedReviewPool', function () {
 		expect(paper.votesIn).to.equal(0)
 	})
 
-	it('should reject invalid reviewer assignments', async function () {
-		const encAuthors = await authorClient.encryptInputs([Encryptable.uint32(67890n)]).execute()
+	it('should require idea submission and encryption approval before paper submission', async function () {
+		const encAuthors = await authorClient.encryptInputs([Encryptable.uint32(11111n)]).execute()
+		const paperHash = ethers.id('Needs approvals')
 
 		await expect(
-			pool.connect(author).submitPaper(ethers.id('Duplicate reviewers'), encAuthors[0], 7, [r1.address, r1.address, r3.address])
+			pool.connect(author).submitPaper(paperHash, encAuthors[0], 7, [r1.address, r2.address, r3.address])
+		).to.be.revertedWith('idea not submitted')
+
+		await pool.connect(author).submitIdeaForReview(paperHash)
+
+		await expect(
+			pool.connect(author).submitPaper(paperHash, encAuthors[0], 7, [r1.address, r2.address, r3.address])
+		).to.be.revertedWith('encryption not approved')
+	})
+
+	it('should reject invalid reviewer assignments', async function () {
+		const encAuthors = await authorClient.encryptInputs([Encryptable.uint32(67890n)]).execute()
+		const paperHash = ethers.id('Duplicate reviewers')
+		await pool.connect(author).submitIdeaForReview(paperHash)
+		await pool.connect(author).approvePaperEncryption(paperHash)
+
+		await expect(
+			pool.connect(author).submitPaper(paperHash, encAuthors[0], 7, [r1.address, r1.address, r3.address])
 		).to.be.revertedWith('duplicate reviewer')
 	})
 

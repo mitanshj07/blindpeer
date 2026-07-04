@@ -1,6 +1,14 @@
 import type { Address } from 'viem'
 
-export type DemoStage = 'ready' | 'matching' | 'matched' | 'encrypting' | 'accepted'
+export type DemoStage =
+  | 'ready'
+  | 'submittingIdea'
+  | 'matching'
+  | 'matched'
+  | 'approvingEncryption'
+  | 'encrypting'
+  | 'submittingPaper'
+  | 'submitted'
 
 export type DemoReviewer = {
   name: string
@@ -46,9 +54,3 @@ export const DEMO_REVIEWERS = [
     reason: 'Covers HIPAA, GDPR, trial safety workflows, and publication policy.',
   },
 ] as const satisfies readonly DemoReviewer[]
-
-export const DEMO_AI_SIGNAL = {
-  score: DEMO_PAPER.aiScore,
-  rationale: DEMO_PAPER.aiRationale,
-  source: 'groq',
-} as const

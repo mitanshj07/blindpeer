@@ -14,6 +14,7 @@ export default function Home() {
   const [mode, setMode] = useState<'demo' | 'live'>('demo')
   const [demoStage, setDemoStage] = useState<DemoStage>('ready')
   const [demoResetKey, setDemoResetKey] = useState(0)
+  const [guidedScore, setGuidedScore] = useState<number | null>(null)
   const [activePaperId, setActivePaperId] = useState<bigint | null>(() => {
     if (typeof window === 'undefined') return null
     const storedPaperId = window.localStorage.getItem('blindpeer.activePaperId')
@@ -42,12 +43,14 @@ export default function Home() {
     if (nextMode === 'demo') {
       setDemoStage('ready')
       setDemoResetKey((key) => key + 1)
+      setGuidedScore(null)
     }
   }
 
   const resetDemo = () => {
     setDemoStage('ready')
     setDemoResetKey((key) => key + 1)
+    setGuidedScore(null)
   }
 
   const isDemo = mode === 'demo'
@@ -79,7 +82,7 @@ export default function Home() {
                 }`}
               >
                 <Sparkles className="h-4 w-4" />
-                Demo
+                Guided
               </button>
               <button
                 type="button"
@@ -95,8 +98,8 @@ export default function Home() {
             {isDemo && (
               <button
                 type="button"
-                aria-label="Reset demo"
-                title="Reset demo"
+                aria-label="Reset guided flow"
+                title="Reset guided flow"
                 onClick={resetDemo}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
               >
@@ -131,11 +134,12 @@ export default function Home() {
               demoStage={demoStage}
               onSubmitted={handleSubmitted}
               onDemoStageChange={setDemoStage}
+              onAiSignal={(signal) => setGuidedScore(signal?.score ?? null)}
             />
           </div>
 
           <div className="lg:col-span-7 space-y-8">
-            <PaperStatus paperId={displayedPaperId} mode={mode} demoStage={demoStage} />
+            <PaperStatus paperId={displayedPaperId} mode={mode} demoStage={demoStage} demoScore={guidedScore} />
             <ReviewPaper paperId={displayedPaperId} mode={mode} demoStage={demoStage} />
           </div>
         </div>
