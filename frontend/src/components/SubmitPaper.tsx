@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { isAddress, keccak256, stringToHex, type Address } from 'viem'
 import { Encryptable } from '@cofhe/sdk'
-import { AlertCircle, ClipboardCheck, FileText, Loader2, Send, Sparkles, Users } from 'lucide-react'
+import { AlertCircle, ClipboardCheck, FileText, Loader2, LockKeyhole, Send, Sparkles, Users } from 'lucide-react'
 import { useCofheClient } from '@/hooks/useCofheClient'
 import { DEMO_AI_SIGNAL, DEMO_PAPER, DEMO_REVIEWERS, type DemoStage } from '@/lib/demoScenario'
 import { REVIEW_POOL_ABI, REVIEW_POOL_ADDRESS, shortAddress } from '@/lib/reviewPool'
@@ -47,20 +47,21 @@ function wait(ms: number) {
 
 type SubmitPaperProps = {
   mode?: 'demo' | 'live'
+  demoStage?: DemoStage
   onSubmitted?: (paperId: bigint) => void
   onDemoStageChange?: (stage: DemoStage) => void
 }
 
-export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: SubmitPaperProps) {
+export function SubmitPaper({ mode = 'live', demoStage = 'ready', onSubmitted, onDemoStageChange }: SubmitPaperProps) {
   const isDemo = mode === 'demo'
   const { address } = useAccount()
   const { client, isReady, isLoading: cofheLoading, error: cofheError } = useCofheClient()
-  const [title, setTitle] = useState(() => (isDemo ? DEMO_PAPER.title : ''))
-  const [abstract, setAbstract] = useState(() => (isDemo ? DEMO_PAPER.abstract : ''))
+  const [title, setTitle] = useState('')
+  const [abstract, setAbstract] = useState('')
   const [reviewers, setReviewers] = useState(() =>
     isDemo ? DEMO_REVIEWERS.map((reviewer) => reviewer.address).join(', ') : LOCAL_REVIEWERS.join(', '),
   )
-  const [aiSignal, setAiSignal] = useState<AiSignal | null>(() => (isDemo ? DEMO_AI_SIGNAL : null))
+  const [aiSignal, setAiSignal] = useState<AiSignal | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [stage, setStage] = useState<'idle' | 'scoring' | 'matching' | 'encrypting' | 'submitting'>('idle')
   const [submittedPaperId, setSubmittedPaperId] = useState<bigint | null>(null)
@@ -111,19 +112,33 @@ export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: S
     setFormError(null)
 
     if (isDemo) {
+      if (!title.trim() || !abstract.trim()) {
+        setFormError('Paste the paper title and abstract before matching reviewers.')
+        return
+      }
+
       try {
-        onDemoStageChange?.('ready')
-        setStage('scoring')
-        setAiSignal(DEMO_AI_SIGNAL)
-        await wait(450)
+        if (demoStage === 'ready') {
+          setStage('scoring')
+          setAiSignal(DEMO_AI_SIGNAL)
+          await wait(450)
 
-        setStage('matching')
-        onDemoStageChange?.('matching')
-        await wait(650)
+          setStage('matching')
+          onDemoStageChange?.('matching')
+          await wait(750)
+          onDemoStageChange?.('matched')
+          return
+        }
 
-        setStage('submitting')
-        await wait(500)
-        onDemoStageChange?.('accepted')
+        if (demoStage === 'matched') {
+          setStage('encrypting')
+          onDemoStageChange?.('encrypting')
+          await wait(900)
+
+          setStage('submitting')
+          await wait(650)
+          onDemoStageChange?.('accepted')
+        }
       } finally {
         setStage('idle')
       }
@@ -183,15 +198,22 @@ export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: S
       : stage === 'matching'
         ? 'Matching reviewers'
         : stage === 'encrypting'
-          ? 'Encrypting author'
+          ? 'Encrypting paper'
           : stage === 'submitting'
             ? isDemo
-              ? 'Auto approving'
+              ? 'Sealing approvals'
               : 'Submit to pool'
             : isDemo
-              ? 'Submit demo paper'
+              ? demoStage === 'matched'
+                ? 'Encrypt paper'
+                : demoStage === 'accepted'
+                  ? 'Paper passed'
+                  : 'Match AI reviewers'
               : 'Submit to pool'
   const visibleError = formError || (!isDemo ? reviewerIssue || cofheError : null)
+  const demoCanEdit = !isDemo || demoStage === 'ready'
+  const showDemoReviewers = isDemo && ['matched', 'encrypting', 'accepted'].includes(demoStage)
+  const demoActionDisabled = demoStage === 'accepted' || isBusy
 
   return (
     <div className="rounded-lg border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
@@ -213,9 +235,9 @@ export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: S
             required
             value={title}
             onChange={e => setTitle(e.target.value)}
-            readOnly={isDemo}
+            readOnly={!demoCanEdit}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
-            placeholder="Encrypted consensus scoring for double-blind review"
+            placeholder={isDemo ? DEMO_PAPER.title : 'Encrypted consensus scoring for double-blind review'}
           />
         </div>
         <div>
@@ -225,11 +247,27 @@ export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: S
             rows={isDemo ? 7 : 4}
             value={abstract}
             onChange={e => setAbstract(e.target.value)}
-            readOnly={isDemo}
+            readOnly={!demoCanEdit}
             className="w-full rounded-md border border-white/10 bg-black/20 px-4 py-2 text-white outline-none transition focus:border-cyan-300/70 focus:ring-2 focus:ring-cyan-300/20"
-            placeholder="Describe the method, threat model, and evaluation signal..."
+            placeholder={isDemo ? DEMO_PAPER.abstract : 'Describe the method, threat model, and evaluation signal...'}
           />
         </div>
+        {isDemo && demoStage === 'ready' && (
+          <button
+            type="button"
+            onClick={() => {
+              setTitle(DEMO_PAPER.title)
+              setAbstract(DEMO_PAPER.abstract)
+              setAiSignal(null)
+              setFormError(null)
+              onDemoStageChange?.('ready')
+            }}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:text-cyan-100"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            Load Demo Idea
+          </button>
+        )}
         <div>
           <div className="mb-1 flex items-center justify-between gap-3">
             <label className="block text-sm font-medium text-slate-400">
@@ -248,20 +286,33 @@ export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: S
           </div>
           {isDemo ? (
             <div className="grid gap-2">
-              {DEMO_REVIEWERS.map((reviewer) => (
-                <div key={reviewer.address} className="rounded-md border border-white/10 bg-black/20 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-100">{reviewer.name}</p>
-                      <p className="text-xs text-slate-400">{reviewer.specialty}</p>
-                    </div>
-                    <span className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-100">
-                      {reviewer.matchScore}%
-                    </span>
-                  </div>
-                  <p className="mt-2 font-mono text-xs text-slate-400">{shortAddress(reviewer.address)}</p>
+              {demoStage === 'ready' && (
+                <div className="rounded-md border border-white/10 bg-black/20 p-3 text-sm text-slate-400">
+                  Reviewer matching appears after the paper idea is submitted for matching.
                 </div>
-              ))}
+              )}
+              {demoStage === 'matching' && (
+                <div className="flex items-center gap-3 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Matching reviewers by topic, methods, and governance fit.
+                </div>
+              )}
+              {showDemoReviewers &&
+                DEMO_REVIEWERS.map((reviewer) => (
+                  <div key={reviewer.address} className="rounded-md border border-white/10 bg-black/20 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-100">{reviewer.name}</p>
+                        <p className="text-xs text-slate-400">{reviewer.specialty}</p>
+                      </div>
+                      <span className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-100">
+                        {reviewer.matchScore}%
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400">{reviewer.reason}</p>
+                    <p className="mt-2 font-mono text-xs text-slate-500">{shortAddress(reviewer.address)}</p>
+                  </div>
+                ))}
             </div>
           ) : (
             <>
@@ -288,14 +339,18 @@ export function SubmitPaper({ mode = 'live', onSubmitted, onDemoStageChange }: S
         </div>
 
         <button 
-          disabled={isBusy || (!isDemo && (!isReady || cofheLoading))}
+          disabled={isDemo ? demoActionDisabled : isBusy || !isReady || cofheLoading}
           type="submit"
           className="flex w-full items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
         >
           {isBusy || (!isDemo && cofheLoading) ? (
             <><Loader2 className="h-5 w-5 animate-spin" /> {buttonLabel}</>
+          ) : isDemo && demoStage === 'matched' ? (
+            <><LockKeyhole className="h-5 w-5" /> Encrypt Paper</>
+          ) : isDemo ? (
+            <><Users className="h-5 w-5" /> {demoStage === 'accepted' ? 'Paper Passed' : 'Match AI Reviewers'}</>
           ) : (
-            <><Send className="h-5 w-5" /> {isDemo ? 'Submit Demo Paper' : 'Submit to Review Pool'}</>
+            <><Send className="h-5 w-5" /> Submit to Review Pool</>
           )}
         </button>
       </form>

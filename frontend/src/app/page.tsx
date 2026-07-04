@@ -13,6 +13,7 @@ import { BrainCircuit, Radio, RotateCcw, ShieldCheck, Sparkles } from 'lucide-re
 export default function Home() {
   const [mode, setMode] = useState<'demo' | 'live'>('demo')
   const [demoStage, setDemoStage] = useState<DemoStage>('ready')
+  const [demoResetKey, setDemoResetKey] = useState(0)
   const [activePaperId, setActivePaperId] = useState<bigint | null>(() => {
     if (typeof window === 'undefined') return null
     const storedPaperId = window.localStorage.getItem('blindpeer.activePaperId')
@@ -38,7 +39,15 @@ export default function Home() {
 
   const switchMode = (nextMode: 'demo' | 'live') => {
     setMode(nextMode)
-    if (nextMode === 'demo') setDemoStage('ready')
+    if (nextMode === 'demo') {
+      setDemoStage('ready')
+      setDemoResetKey((key) => key + 1)
+    }
+  }
+
+  const resetDemo = () => {
+    setDemoStage('ready')
+    setDemoResetKey((key) => key + 1)
   }
 
   const isDemo = mode === 'demo'
@@ -88,7 +97,7 @@ export default function Home() {
                 type="button"
                 aria-label="Reset demo"
                 title="Reset demo"
-                onClick={() => setDemoStage('ready')}
+                onClick={resetDemo}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -116,7 +125,13 @@ export default function Home() {
 
         <div className="grid w-full grid-cols-1 gap-8 lg:grid-cols-12">
           <div className="lg:col-span-5 space-y-8">
-            <SubmitPaper key={mode} mode={mode} onSubmitted={handleSubmitted} onDemoStageChange={setDemoStage} />
+            <SubmitPaper
+              key={`${mode}-${demoResetKey}`}
+              mode={mode}
+              demoStage={demoStage}
+              onSubmitted={handleSubmitted}
+              onDemoStageChange={setDemoStage}
+            />
           </div>
 
           <div className="lg:col-span-7 space-y-8">

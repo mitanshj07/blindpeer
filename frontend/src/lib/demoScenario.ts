@@ -1,6 +1,6 @@
 import type { Address } from 'viem'
 
-export type DemoStage = 'ready' | 'matching' | 'accepted'
+export type DemoStage = 'ready' | 'matching' | 'matched' | 'encrypting' | 'accepted'
 
 export type DemoReviewer = {
   name: string

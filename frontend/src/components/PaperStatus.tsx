@@ -48,13 +48,15 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
   const paper = paperData as PaperTuple | undefined
 
   if (isDemo) {
+    const matched = ['matched', 'encrypting', 'accepted'].includes(demoStage)
+    const encrypted = demoStage === 'encrypting' || demoStage === 'accepted'
     const accepted = demoStage === 'accepted'
     const matching = demoStage === 'matching'
-    const votesIn = accepted ? 3 : matching ? 2 : 0
+    const votesIn = accepted ? 3 : 0
     const steps = [
-      { label: 'Submitted', active: matching || accepted },
-      { label: 'Votes', active: votesIn > 0 },
-      { label: 'Threshold', active: accepted },
+      { label: 'Idea', active: matching || matched },
+      { label: 'Match', active: matched },
+      { label: 'Encrypt', active: encrypted },
       { label: 'Verdict', active: accepted },
     ]
 
@@ -80,7 +82,7 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
               <p className="text-sm text-slate-400">AI Pre-Score</p>
               <div className="mt-1 flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-amber-300" />
-                <p className="text-3xl font-bold text-amber-300">{DEMO_PAPER.aiScore}</p>
+                <p className="text-3xl font-bold text-amber-300">{matching || matched ? DEMO_PAPER.aiScore : '-'}</p>
               </div>
             </div>
           </div>
@@ -94,18 +96,35 @@ export function PaperStatus({ paperId, mode = 'live', demoStage = 'ready' }: Pap
           </div>
 
           <div className="space-y-4 rounded-lg border border-white/10 bg-slate-950/60 p-5">
-            {!matching && !accepted && (
+            {demoStage === 'ready' && (
               <div>
-                <h3 className="font-medium text-slate-200">Ready For Submission</h3>
-                <p className="text-sm text-slate-400">Demo paper is loaded.</p>
+                <h3 className="font-medium text-slate-200">Awaiting Idea</h3>
+                <p className="text-sm text-slate-400">Paste the paper idea, then match reviewers.</p>
               </div>
             )}
 
             {matching && (
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-medium text-slate-200">Private Review Running</h3>
-                  <p className="text-sm text-slate-400">Matched reviewers are sealing encrypted approvals.</p>
+                  <h3 className="font-medium text-slate-200">Finding Reviewers</h3>
+                  <p className="text-sm text-slate-400">Scoring topic fit and conflict-safe expertise.</p>
+                </div>
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-200" />
+              </div>
+            )}
+
+            {demoStage === 'matched' && (
+              <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
+                <h3 className="font-medium text-cyan-100">Reviewers Matched</h3>
+                <p className="mt-1 text-sm text-cyan-100/75">Click Encrypt Paper to seal the paper hash and author identity.</p>
+              </div>
+            )}
+
+            {demoStage === 'encrypting' && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-200">Encrypting Paper</h3>
+                  <p className="text-sm text-slate-400">CoFHE package is sealing the paper for private review.</p>
                 </div>
                 <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-200" />
               </div>
