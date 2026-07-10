@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BlindPeer Frontend
 
-## Getting Started
+This Next.js app is the live BlindPeer interface for submitting encrypted papers, assigning reviewers, collecting encrypted votes, and revealing the aggregate verdict.
 
-First, run the development server:
+## Run Locally
+
+From the repository root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm frontend:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or from this directory:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app runs at [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Environment
 
-To learn more about Next.js, take a look at the following resources:
+Create `frontend/.env.local` when you need to override the deployed review pool or enable Groq scoring:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+NEXT_PUBLIC_REVIEW_POOL_ADDRESS=0x...
+GROQ_API_KEY=...
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`GROQ_API_KEY` is optional. If it is missing or the API request fails, the scoring endpoint returns a deterministic fallback so the submission flow can still be tested.
 
-## Deploy on Vercel
+## Useful Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `pnpm dev` - start the Next.js dev server with webpack
+- `pnpm build` - create a production build
+- `pnpm lint` - run ESLint
