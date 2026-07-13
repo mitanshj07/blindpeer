@@ -22,14 +22,14 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/fhenixprotocol/cofhe-hardhat-starter.git"
+		"url": "git+https://github.com/mitanshj07/blindpeer.git"
 	},
 	"author": "Fhenix",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/fhenixprotocol/cofhe-hardhat-starter/issues"
+		"url": "https://github.com/mitanshj07/blindpeer/issues"
 	},
-	"homepage": "https://github.com/fhenixprotocol/cofhe-hardhat-starter#readme",
+	"homepage": "https://github.com/mitanshj07/blindpeer#readme",
 	"devDependencies": {
 		"@fhenixprotocol/cofhe-contracts": "^0.1.3",
 		"@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
