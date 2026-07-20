@@ -8,6 +8,12 @@ type GroqScore = {
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const MAX_TITLE_LENGTH = 180
+const MAX_ABSTRACT_LENGTH = 4000
+
+function validationError(error: string) {
+  return NextResponse.json({ error }, { status: 400 })
+}
 
 function fallbackScore(title: string, abstract: string): GroqScore {
   const text = `${title} ${abstract}`.toLowerCase()
@@ -87,7 +93,15 @@ export async function POST(request: Request) {
   const abstract = typeof body?.abstract === 'string' ? body.abstract.trim() : ''
 
   if (!title || !abstract) {
-    return NextResponse.json({ error: 'title and abstract are required' }, { status: 400 })
+    return validationError('title and abstract are required')
+  }
+
+  if (title.length > MAX_TITLE_LENGTH) {
+    return validationError(`title must be ${MAX_TITLE_LENGTH} characters or fewer`)
+  }
+
+  if (abstract.length > MAX_ABSTRACT_LENGTH) {
+    return validationError(`abstract must be ${MAX_ABSTRACT_LENGTH} characters or fewer`)
   }
 
   const controller = new AbortController()
