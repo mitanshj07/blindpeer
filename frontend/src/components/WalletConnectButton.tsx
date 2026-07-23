@@ -16,7 +16,7 @@ export function WalletConnectButton() {
   const { disconnect } = useDisconnect()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
-  const injectedConnector = connectors[0]
+  const injectedConnector = connectors.find((connector) => connector.type === 'injected')
   const needsSepolia = isConnected && chainId !== SEPOLIA_CHAIN_ID
 
   if (!injectedConnector) {
